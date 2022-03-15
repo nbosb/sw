@@ -51,7 +51,7 @@ public: // externally facing
     virtual ~Emulator();
 
     bool ping();
-
+    void wait_until_thread_is_active();
     NvDlaError submit(NvU8* task_mem, bool blocking);
     NvDlaError start();
     bool stop();
@@ -82,7 +82,9 @@ private:
     bool m_signalShutdown;
 
     std::mutex m_mtx;
+    std::mutex m_mtxThreadActive;
     std::condition_variable m_cv;
+    std::condition_variable m_cvThreadActive;
 };
 
 } // nvdla::priv

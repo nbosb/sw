@@ -55,7 +55,18 @@ Emulator::~Emulator()
 
 bool Emulator::ping()
 {
+    std::lock_guard<std::mutex> lk(m_mtxThreadActive);
     return m_threadActive;
+}
+
+void Emulator::wait_until_thread_is_active()
+{
+    std::unique_lock<std::mutex> lk(m_mtxThreadActive);
+    if (m_threadActive) {
+        return;
+    }
+    m_cvThreadActive.wait(lk, [&]{return !m_threadActive;});
+    return;
 }
 
 NvDlaError Emulator::submit(NvU8* task_mem, bool blocking)
@@ -111,7 +122,11 @@ bool Emulator::stop()
 bool Emulator::run()
 {
     bool ok = true;
-    m_threadActive = true;
+    {
+        std::lock_guard<std::mutex> lk(m_mtxThreadActive);
+        m_threadActive = true;
+        m_cvThreadActive.notify_all();
+    }
 
     EMUInterface* emu_if = new EMUInterfaceA();
 
@@ -171,9 +186,12 @@ bool Emulator::run()
     }
 
     delete emu_if;
-    m_threadActive = false;
     m_signalShutdown = false;
-
+    {
+        std::unique_lock<std::mutex> lk(m_mtxThreadActive);
+        m_threadActive = false;
+        m_cvThreadActive.notify_all();
+    }
     return ok;
 }
 
